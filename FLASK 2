@@ -1,0 +1,80 @@
+Flask startup and configuration:
+Like most widely used Python libraries, the Flask package is installable from the Python Package Index (PPI). First create a directory to work in (something like flask_todo is a fine directory name) then install the flask package. You'll also want to install flask-sqlalchemy so your Flask application has a simple way to talk to a SQL database.
+
+I like to do this type of work within a Python 3 virtual environment. To get there, enter the following on the command line:
+
+$ mkdir flask_todo
+$ cd flask_todo
+$ pipenv install --python 3.6
+$ pipenv shell
+(flask-someHash) $ pipenv install flask flask-sqlalchemy
+If you want to turn this into a Git repository, this is a good place to run git init. It'll be the root of the project, and if you want to export the codebase to a different machine, it will help to have all the necessary setup files here.
+
+A good way to get moving is to turn the codebase into an installable Python distribution. At the project's root, create setup.py and a directory called todo to hold the source code.
+
+The setup.py should look something like this:
+
+from setuptools import setup, find_packages
+
+requires = [
+    'flask',
+    'flask-sqlalchemy',
+    'psycopg2',
+]
+
+setup(
+    name='flask_todo',
+    version='0.0',
+    description='A To-Do List built with Flask',
+    author='<Your actual name here>',
+    author_email='<Your actual e-mail address here>',
+    keywords='web flask',
+    packages=find_packages(),
+    include_package_data=True,
+    install_requires=requires
+)
+This way, whenever you want to install or deploy your project, you'll have all the necessary packages in the requires list. You'll also have everything you need to set up and install the package in site-packages. For more information on how to write an installable Python distribution, check out the docs on setup.py.
+
+Within the todo directory containing your source code, create an app.py file and a blank __init__.py file. The __init__.py file allows you to import from todo as if it were an installed package. The app.py file will be the application's root. This is where all the Flask application goodness will go, and you'll create an environment variable that points to that file. If you're using pipenv (like I am), you can locate your virtual environment with pipenv --venv and set up that environment variable in your environment's activate script.
+
+# in your activate script, probably at the bottom (but anywhere will do)
+
+export FLASK_APP=$VIRTUAL_ENV/../todo/app.py
+export DEBUG='True'
+When you installed Flask, you also installed the flask command-line script. Typing flask run will prompt the virtual environment's Flask package to run an HTTP server using the app object in whatever script the FLASK_APP environment variable points to. The script above also includes an environment variable named DEBUG that will be used a bit later.
+Defining objects in Flask
+Having a database to talk to is a good first step. Now it's time to define some objects to fill that database.
+
+In application development, a "model" refers to the data representation of some real or conceptual object. For example, if you're building an application for a car dealership, you may define a Car model that encapsulates all of a car's attributes and behavior.
+
+In this case, you're building a To-Do List with Tasks, and each Task belongs to a User. Before you think too deeply about how they're related to each other, start by defining objects for Tasks and Users.
+
+The flask-sqlalchemy package leverages SQLAlchemy to set up and inform the database structure. You'll define a model that will live in the database by inheriting from the db.Model object and define the attributes of those models as db.Column instances. For each column, you must specify a data type, so you'll pass that data type into the call to db.Column as the first argument.
+
+Because the model definition occupies a different conceptual space than the application configuration, make models.py to hold model definitions separate from app.py. The Task model should be constructed to have the following attributes:
+
+id: a value that's a unique identifier to pull from the database
+name: the name or title of the task that the user will see when the task is listed
+note: any extra comments that a person might want to leave with their task
+creation_date: the date and time the task was created
+due_date: the date and time the task is due to be completed (if at all)
+completed: a way to indicate whether or not the task has been completed
+Given this attribute list for Task objects, the application's Task object can be defined like so:
+
+from .app import db
+from datetime import datetime
+
+class Task(db.Model):
+    """Tasks for the To Do list."""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Unicode, nullable=False)
+    note = db.Column(db.Unicode)
+    creation_date = db.Column(db.DateTime, nullable=False)
+    due_date = db.Column(db.DateTime)
+    completed = db.Column(db.Boolean, default=False)
+
+    def __init__(self, *args, **kwargs):
+        """On construction, set date of creation."""
+        super().__init__(*args, **kwargs)
+        self.creation_date = datetime.now()
+Note the extension of the class constructor method. At the end of the day, any model you construct is still a Python object and therefore must go through construction in order to be instantiated. It's important to ensure that the creation date of the model instance reflects its actual date of creation. You can explicitly set that relationship by effectively saying, "when an instance of this model is constructed, record the date and time and set it as the creation date."
